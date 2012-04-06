@@ -98,6 +98,17 @@ io.sockets.on("connection", function(socket) {
 			delete selections[socket.id];
 		});
 });
+io.set("log level", 1);
+io.enable("browser client minification");
+io.enable("browser client etag");
+io.set('transports', [ // enable all transports (option
+	// 'websocket'
+	'flashsocket'
+	, 'htmlfile'
+	, 'xhr-polling'
+	, 'jsonp-polling'
+]);
+
 server.listen(8010);
 // http://wordsearchfun.com/9845_ANDREW_LESSON_4_wordsearch.html
 // var a = ""; $("table tr").map(function() { $(this).find("td").map(function() { a += $(this).text().trim(); }); a += "\n"; }); b = $(".dyntextval").text().split(/\n/g).filter(function(t) { return t.trim().length > 0; }); a = a.trim().split(/\n/g).map(function(r) { return r.split(""); }); copy(JSON.stringify({ "board": a, "words": b }));

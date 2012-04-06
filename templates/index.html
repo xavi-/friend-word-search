@@ -111,7 +111,6 @@ $("#board")
 		startPos = [ $(this).data("row"), $(this).data("col") ];
 	})
 	.on("mousemove touchmove MozTouchMove", "td", function(e) {
-		console.log("td: " + e.target.id);
 		if(!startPos) { return; }
 
 		var tmpPos = [ $(this).data("row"), $(this).data("col") ];
