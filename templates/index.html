@@ -1,0 +1,198 @@
+<html>
+<head>
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="viewport" content="initial-scale=1.0; minimum-scale=1.0; maximum-scale=1.0;"/>
+	<style>
+		.found-select { background: magenta; }
+		.other-select { background: cyan; }
+		.my-select { background: lime; }
+		.word-found { text-decoration: line-through; }
+		#board, #words { float: left; }
+		td { text-align: center; }
+	</style>
+</head>
+<body>
+	<table id="board"></table>
+	<ul id="words"></ul>
+<script src="//ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script type="text/javascript">
+var game = (: game :);
+var selections = (: selections :);
+var foundWords = (: foundWords :);
+
+function updateSelects(foundWords, selections) {
+	$(".found-select").removeClass("found-select");
+	$(".word-found").removeClass("word-found");
+	for(var word in foundWords) {
+		var pos = getSelectedPos(foundWords[word].startPos, foundWords[word].endPos);
+
+		if(pos.length < 1) { continue; }
+
+		for(var i = 0; i < pos.length; i++) {
+			$("#pos-" + pos[i][0] + "_" + pos[i][1]).addClass("found-select");
+		}
+		$("#word-" + word).addClass("word-found");
+	}
+
+
+	$(".other-select").removeClass("other-select");
+	for(var id in selections) {
+		var pos = getSelectedPos(selections[id].startPos, selections[id].endPos);
+
+		if(pos.length < 1) { continue; }
+
+		for(var i = 0; i < pos.length; i++) {
+			$("#pos-" + pos[i][0] + "_" + pos[i][1]).addClass("other-select");
+		}
+	}
+
+	if(!startPos) { return; }
+
+	var pos = getSelectedPos(startPos, endPos);
+
+	if(pos.length < 1) { return; }
+
+	$(".my-select").removeClass("my-select");
+	for(var i = 0; i < pos.length; i++) {
+		$("#pos-" + pos[i][0] + "_" + pos[i][1]).addClass("my-select");
+	}
+}
+function newGame(game, foundWords, selections) {
+	$("#board").empty();
+	var rows = game.board.length, cols = game.board[0].length;
+	for(var r = 0; r < rows; r++) {
+		var $row = $("<tr>");
+		for(var c = 0; c < cols; c++) {
+			$row = $row.append(
+				$("<td>")
+					.attr("id", "pos-" + r + "_" + c)
+					.data("row", r).data("col", c)
+					.text(game.board[r][c])
+			);
+		}
+		$("#board").append($row);
+	}
+
+	$("#words").empty();
+	for(var i = 0; i < game.words.length; i++) {
+		$("#words").append(
+			$("<li>")
+				.attr("id", "word-" + game.words[i])
+				.text(game.words[i])
+		);
+	}
+	updateSelects(foundWords, selections);
+}
+newGame(game, foundWords, selections);
+
+function getSelectedPos(startPos, endPos) {
+	var diffRow = endPos[0] - startPos[0], diffCol = endPos[1] - startPos[1];
+	if(diffRow === 0 && diffCol === 0) { return [ startPos ]; }
+
+	var isHorizontal = (diffRow === 0);
+	var isVertical = (diffCol === 0);
+	var isDiagonal = (Math.abs(diffRow) === Math.abs(diffCol));
+	if(!isHorizontal && !isVertical && !isDiagonal) { return []; }
+
+	var pos = [], steps = Math.max(Math.abs(diffRow), Math.abs(diffCol)) + 1;
+	var stepRow = diffRow && diffRow / Math.abs(diffRow);
+	var stepCol = diffCol && diffCol / Math.abs(diffCol);
+	for(var i = 0; i < steps; i++) {
+		pos.push([ startPos[0] + stepRow * i, startPos[1] + stepCol * i ]);
+	}
+	return pos;
+}
+
+var startPos, endPos;
+$("#board")
+	.on("mousedown mouseup mousemove touchstart MozTouchDown", "td", function(e) { e.preventDefault(); })
+	.on("mousedown touchstart MozTouchDown", "td", function() {
+		startPos = [ $(this).data("row"), $(this).data("col") ];
+	})
+	.on("mousemove touchmove MozTouchMove", "td", function(e) {
+		console.log("td: " + e.target.id);
+		if(!startPos) { return; }
+
+		var tmpPos = [ $(this).data("row"), $(this).data("col") ];
+
+		if(endPos && tmpPos[0] === endPos[0] && tmpPos[1] === endPos[1]) { return; }
+
+		var pos = getSelectedPos(startPos, tmpPos);
+
+		if(pos.length < 1) { return; }
+
+		$(".my-select").removeClass("my-select");
+		for(var i = 0; i < pos.length; i++) {
+			$("#pos-" + pos[i][0] + "_" + pos[i][1]).addClass("my-select");
+		}
+
+		endPos = tmpPos;
+		socket.emit("select", { startPos: startPos, endPos: endPos });
+	})
+	.on("mouseup touchend MozTouchRelease", "td", function() {
+		if(!startPos) { return; }
+
+		var tmpPos = [ $(this).data("row"), $(this).data("col") ];
+		
+		var pos = getSelectedPos(startPos, tmpPos);
+		if(pos.length > 0) { endPos = tmpPos; }
+
+		$(document).trigger("selection-done");
+	});
+$(document).bind("mouseup touchend MozTouchRelease selection-done", function() {
+	if(!startPos || !endPos) { return; }
+
+	var pos = getSelectedPos(startPos, endPos);
+
+	if(pos.length < 1) { return; }
+
+	var word = "";
+	for(var i = 0; i < pos.length; i++) {
+		word += game.board[pos[i][0]][pos[i][1]];
+	}
+	word = word.toUpperCase();
+
+	var reverseWord = word.split("").reverse().join("");
+	var isValid = false;
+	for(var i = 0; i < game.words.length; i++) {
+		if(game.words[i] === word) { isValid = true; break; }
+		if(game.words[i] === reverseWord) { word = reveseWord; isValid = true; break; }
+	}
+	if(isValid) {
+		foundWords[word] = { word: word, startPos: startPos, endPos: endPos };
+		socket.emit("found", foundWords[word]);
+		updateSelects(foundWords, selections);
+	}
+	
+	startPos = null;
+
+	socket.emit("unselect");
+	$(".my-select").removeClass("my-select");
+});
+
+var socket = io.connect();
+socket
+	.on("game-over", function(gameInfo) { console.log("game over"); })
+	.on("new-game", function(gameInfo) {
+		game = gameInfo;
+		selections = {};
+		foundWords = {};
+		newGame(game, selections, foundWords);
+	})
+	.on("found", function(info) {
+		foundWords[info.word] = info;
+	})
+	.on("select", function(coords) {
+		selections[coords.userId] = coords;
+		updateSelects(foundWords, selections);
+	})
+	.on("unselect", function(userId) {
+		selections[userId] = null;
+		delete selections[userId];
+		updateSelects(foundWords, selections);
+	})
+;
+</script>
+</body>
+</html>
