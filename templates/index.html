@@ -1,32 +1,39 @@
 <html>
 <head>
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="viewport" content="initial-scale=1.0; minimum-scale=1.0; maximum-scale=1.0;"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black" />
+<meta name = "viewport" content = "width=device-width">
 	<style>
+		html, body { padding: 0; margin: 0; font-family: sans-serif; }
+		h1 { margin: 0 0 5px 0; padding: 0; text-align: center; }
 		.board-container { position: relative; }
 		.board-cover { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
 		.found-select { background: magenta; }
 		.other-select { background: cyan; }
 		.my-select { background: lime; }
 		.word-found { text-decoration: line-through; }
-		#board { display: inline-block; }
+		#board { display: inline-block; -moz-user-select: none; -webkit-user-select: none; user-select: none; }
 		#words, .board-container { float: left; }
-		.letter {
+		.is-mobile #words { margin: 5px 0; padding: 0; }
+		.is-mobile #words li { display: inline-block; }
+		.is-mobile #words li:before { content: "\2022"; margin: 0 2px 0 10px;}
+		.cell {
+			cursor: pointer;
 			float: left;
-			font-family: sans-serif;
-			font-size: 16px;
 			text-align: center;
-			width: 18px; height: 18px;
 		}
-		.letter.new-line { clear: both; }
+		.cell.new-line { clear: both; }
 	</style>
 </head>
 <body>
+	<h1>Find words</h1>
 	<div class="board-container"><div id="board"></div></div>
 	<ul id="words"></ul>
 <script src="//ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.js"></script>
 <script src="/socket.io/socket.io.js"></script>
 <script type="text/javascript">
+var isMobile = $(window).width() < 800; // Shitty way of detecting mobile
+var CELL_WIDTH = 20, CELL_HEIGHT = 20, FONT_SIZE = 18;
 var game = (: game :);
 var selections = (: selections :);
 var foundWords = (: foundWords :);
@@ -52,14 +59,21 @@ function updateSelects(foundWords, selections) {
 }
 function newGame(game, foundWords, selections) {
 	$("#board").empty();
+
+	if(isMobile) {
+		CELL_WIDTH = CELL_HEIGHT = Math.floor($(window).width() / game.board[0].length);
+		FONT_SIZE = CELL_WIDTH * .9;
+	}
+
 	var rows = game.board.length, cols = game.board[0].length;
 	for(var r = 0; r < rows; r++) {
 		for(var c = 0; c < cols; c++) {
 			$("#board").append(
-				$("<div class='letter'>")
+				$("<div class='cell'>")
 					.toggleClass("new-line", c === 0)
 					.attr("id", "pos-" + r + "_" + c)
 					.data("row", r).data("col", c)
+					.css({ width: CELL_WIDTH, height: CELL_HEIGHT, "font-size": FONT_SIZE })
 					.text(game.board[r][c])
 			);
 		}
@@ -126,37 +140,13 @@ var eventMap =
 
 var startPos, endPos;
 $("#board")
-	.on("mousedown mouseup mousemove", "td", function(e) {
+	.on("mousedown mouseup mousemove", ".cell", function(e) {
 		e.preventDefault();
+
 		$(document).trigger(eventMap[e.type], [ $(this).data("row"), $(this).data("col") ]);
 	});
-$("<div class='board-cover'/>")
-	.on("mousedown mouseup mousemove "
-	+ "touchstart touchmove touchend touchcancel gestureend"
-	+ "MozTouchDown MozTouchMove MozTouchRelease", function(e) {
-		e.preventDefault();
-
-		var eventType = eventMap[e.type];
-
-		if(e.originalEvent.touches && e.originalEvent.touches.length) {
-			e = e.originalEvent.touches[0];
-		} else if(e.originalEvent.changedTouches && e.originalEvent.changedTouches.length) {
-			e = e.originalEvent.changedTouches[0];
-		}
-
-		var offset = $(this).offset();
-		var pos = [ Math.floor((e.pageY - offset.top) / 18), Math.floor((e.pageX - offset.left) / 18) ];
-
-		if(pos[0] < 0) { return; }
-		if(pos[1] < 0) { return; }
-		if(game.board.length <= pos[0]) { return; }
-		if(game.board[0].length <= pos[1]) { return; }
-
-		$(document).trigger(eventType, pos);
-	})
-	.appendTo(".board-container");
 $(document)
-	.bind("touchstart touchmove touchend touchcancel", function(e) { e.preventDefault(); })
+	.bind("touchend touchcancel", function(e) { e.preventDefault(); })
 	.bind("selection-start", function(e, row, col) { startPos = [ row, col ]; })
 	.bind("selection-change", function(e, row, col) {
 		if(!startPos) { return; }
@@ -255,6 +245,54 @@ socket
 		updateSelects(foundWords, selections);
 	})
 ;
+
+if(isMobile) {
+	$("<div class='board-cover'/>")
+		.on("mousedown mouseup mousemove "
+		+ "touchstart touchmove touchend touchcancel gestureend"
+		+ "MozTouchDown MozTouchMove MozTouchRelease", function(e) {
+			e.preventDefault();
+
+			var eventType = eventMap[e.type];
+
+			if(e.originalEvent.touches && e.originalEvent.touches.length) {
+				e = e.originalEvent.touches[0];
+			} else if(e.originalEvent.changedTouches && e.originalEvent.changedTouches.length) {
+				e = e.originalEvent.changedTouches[0];
+			}
+
+			var offset = $(this).offset();
+			var pos = [
+				Math.floor((e.pageY - offset.top) / CELL_HEIGHT),
+				Math.floor((e.pageX - offset.left) / CELL_WIDTH)
+			];
+
+			if(pos[0] < 0) { return; }
+			if(pos[1] < 0) { return; }
+			if(game.board.length <= pos[0]) { return; }
+			if(game.board[0].length <= pos[1]) { return; }
+
+			$(document).trigger(eventType, pos);
+		})
+		.appendTo(".board-container");
+	$(window)
+		.data("re-scroll", true)
+		.bind("load hide-url-bar", function() {
+			var $window = $(window);
+
+			if($window.data("re-scroll")) {
+				setTimeout(function() { window.scrollTo(0, 1); }, 0);
+				$window.data("re-scroll", false);
+			}
+		})
+		.bind("scroll", function() { $(window).data("re-scroll", true); });
+
+	$("body").addClass("is-mobile").click(function() { console.log("hihi"); $(window).trigger("hide-url-bar"); })
+
+	$("#board, .board-cover").bind("touchend touchcancel MozTouchRelease click mousemove mouseup", function() {
+		$(window).trigger("hide-url-bar");
+	});
+}
 </script>
 </body>
 </html>
