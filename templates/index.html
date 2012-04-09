@@ -287,7 +287,7 @@ if(isMobile) {
 		})
 		.bind("scroll", function() { $(window).data("re-scroll", true); });
 
-	$("body").addClass("is-mobile").click(function() { console.log("hihi"); $(window).trigger("hide-url-bar"); })
+	$("body").addClass("is-mobile").click(function() { $(window).trigger("hide-url-bar"); })
 
 	$("#board, .board-cover").bind("touchend touchcancel MozTouchRelease click mousemove mouseup", function() {
 		$(window).trigger("hide-url-bar");
